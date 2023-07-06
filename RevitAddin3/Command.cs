@@ -7,6 +7,7 @@ using Autodesk.Revit.UI.Selection;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Excel = Microsoft.Office.Interop.Excel;
 
 #endregion
 
@@ -25,32 +26,62 @@ namespace RevitAddin3
             Application app = uiapp.Application;
             Document doc = uidoc.Document;
 
-            // Access current selection
+            string excelFile = @"J:\New Hire\Cameron Flessner\Revit Add-in Academy\Session 02\Resources\Session02_Challenge.xlsx";
 
-            Selection sel = uidoc.Selection;
+            //open Excel
+            Excel.Application excelApp = new Excel.Application();
+            Excel.Workbook excelWb = excelApp.Workbooks.Open(excelFile);
 
-            // Retrieve elements from database
+            Excel.Worksheet excelWs1 = excelWb.Worksheets.Item[1];
+            Excel.Worksheet excelWs2 = excelWb.Worksheets.Item[2];
 
-            FilteredElementCollector col
-              = new FilteredElementCollector(doc)
-                .WhereElementIsNotElementType()
-                .OfCategory(BuiltInCategory.INVALID)
-                .OfClass(typeof(Wall));
+            Excel.Range excelRng1 = excelWs1.UsedRange;
+            Excel.Range excelRng2 = excelWs2.UsedRange;
 
-            // Filtered element collector is iterable
+            int rowCount1 = excelRng1.Rows.Count;
+            int rowCount2 = excelRng2.Rows.Count;
 
-            foreach (Element e in col)
+            using (Transaction t = new Transaction(doc))
             {
-                Debug.Print(e.Name);
-            }
+                t.Start("Setup Project");
 
-            // Modify document within a transaction
+                for (int i = 2; i <= rowCount1; i++)
+                {
+                    Excel.Range levelData1 = excelWs1.Cells[i, 1];
+                    Excel.Range levelData2 = excelWs1.Cells[i, 2];
 
-            using (Transaction tx = new Transaction(doc))
-            {
-                tx.Start("Transaction Name");
-                tx.Commit();
+                    string levelName = levelData1.Value.ToString();
+                    double levelElev = levelData2.Value;
+
+                    Level newLevel = Level.Create(doc, levelElev);
+                    newLevel.Name = levelName;
+
+                }
+
+                FilteredElementCollector collector = new FilteredElementCollector(doc);
+                collector.OfCategory(BuiltInCategory.OST_TitleBlocks);
+                collector.WhereElementIsElementType();
+
+                for (int j = 2; j <= rowCount2; j++)
+                {
+                    Excel.Range sheetData1 = excelWs2.Cells[j, 1];
+                    Excel.Range sheetData2 = excelWs2.Cells[j, 2];
+
+                    string sheetNum = sheetData1.Value.ToString();
+                    string sheetName = sheetData2.Value.ToString();
+
+                    ViewSheet newSheet = ViewSheet.Create(doc, collector.FirstElementId());
+                    newSheet.SheetNumber = sheetNum;
+                    newSheet.Name = sheetName;
+
+                }
+
+                t.Commit();
+
             }
+                
+                excelWb.Close();
+            excelApp.Quit();
 
             return Result.Succeeded;
         }
